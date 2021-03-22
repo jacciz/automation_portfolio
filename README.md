@@ -10,4 +10,4 @@ This project involved the compilation of 5 data sets to calculate OWI ratios bro
 + Datasets include: NHTS, Census, arrest data, DMV driver, and persons in a crash
 
 ## Import JSON from an API
-We wanted to find the average sentence length of 3+ OWI offenders. I used our court case data to compile this data into one dataframe for analysis. This script is the first part of my analysis that grabs, compiles and flattens JSON into a single dataframe given a data range and court code.
+We wanted to find the average sentence length of 3+ OWI offenders. I used our court case API to compile this data into one dataframe for analysis. This script is the first part of my analysis that grabs, compiles and flattens JSON into a single dataframe given a data range and court code.
