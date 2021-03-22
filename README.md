@@ -1,5 +1,5 @@
 # automation_portfolio
-These are code from 3 of my projects. Portfolio of my code:
+This is a porforlio of my code from 3 projects.
 
 ## Automation of SAS to FST format
 + Translates our crash data into .fst file by running a cmd script.
