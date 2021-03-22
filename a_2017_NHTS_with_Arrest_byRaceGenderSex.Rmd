@@ -259,133 +259,6 @@ persons_drivers  %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impai
 person_summarise_crash_count(., fields_to_summarise = "R_RACE") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE)) 
 ```
 
-```{r drivers and population correlation}
-# d1 <- nhts_summarise_total_drivers(nhts_person, fields_to_summarise = "R_AGE")
-# p1 <- census_summarise_pop_count(census17, fields_to_summarise = "R_AGE")
-# left_join(d1, p1, by = "R_AGE") %>% pivot_longer(
-#   cols = c("total_drivers", "total_population"),
-#   names_to = "type",
-#   values_to = "total"
-# ) %>% filter(R_AGE >= 0 & R_AGE < 85) %>% ggplot(aes(x = R_AGE, y = total, color = type)) + geom_point() + theme(legend.position = "top") + scale_x_continuous(breaks = seq(0, 90, 5))
-```
-
-```{r percents comparison of race and sex}
-# By race and sex
-# persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_RACE", "R_SEX")) %>%
-#   filter(R_SEX != "Unknown") %>%
-#   get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE", "R_SEX")) %>%
-#   select(R_RACE, R_SEX, c(starts_with("percent"))) %>%
-#   arrange(factor(R_RACE, levels  = race_factor_level)) %>%
-#   pivot_longer(cols = c(starts_with("percent")),
-#                values_to = c("percent_data")) %>%
-#   filter(R_RACE != "Total", name != "percent_of_arrests_by_pop") %>%
-#   ggplot(aes(
-#     x = factor(R_RACE, levels = race_factor_level),
-#     y = percent_data,
-#     fill = factor(name, levels = percents_factor_levels)
-#   )) +
-#   geom_bar(position = "dodge", stat = "identity") +
-#   theme_bar_charts(base_size = 8) +
-#   theme(axis.text.y = element_blank()) +
-#   # coord_flip() +
-#   geom_text(
-#     aes(label = paste0(round(percent_data, 0), "%"), color = factor(name, levels = percents_factor_levels)),
-#     position = position_dodge(width = .9),
-#     vjust = -.8,
-#     size = 3,
-#     fontface = "bold"
-#   ) + scale_y_continuous(expand = expansion(mult = c(0, .05)),
-#                          name = "",
-#                          limits = c(0, 70)) +
-#   scale_color_manual( # For geom_text
-#     values = c(
-#       "percent_of_drivers" = "#428BCA",
-#       "percent_of_vmt" = "#4DB848",
-#       "percent_of_crashes" = "#D50032",
-#       "percent_of_arrests" = "#d6a60f"
-#     )
-#   ) + #for geom_text
-#   scale_fill_manual( # For bar chart fill
-#     # for bars
-#     name = "",
-#     values = c(
-#       "percent_of_drivers" = "#428BCA",
-#       "percent_of_vmt" = "#4DB848",
-#       "percent_of_crashes" = "#D50032",
-#       "percent_of_arrests" = "#d6a60f"
-#     )
-#     # labels = c("Crashes", "Drivers", "VMT")
-#   ) +
-#   labs(
-#     title = "<span style='font-size:15pt'>Share of
-#     <span style='color:#428BCA;'>**drivers**</span>,
-#     <span style='color:#4DB848;'>**VMT**</span>,
-#     <span style='color:#D50032;'>**crashes**</span>, and
-#     <span style='color:#d6a60f;'>**OWI arrests**</span> by race and sex
-#     </span>"
-#   ) + facet_wrap( ~ R_SEX)
-```
-```{r Ratio comparison of race and sex}
-# race_axis_labels <- c('American\nIndian or\nAlaska Native', 'Asian or\nPacific\nIslander', 'Black or\nAfrican\nAmerican', 'Hispanic', 'White', 'Other/\nUnknown') # Took out 'Native Hawaiian or other Pacific Islander'
-# # By race and sex
-# persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_RACE", "R_SEX")) %>%
-#   filter(R_SEX != "Unknown") %>%
-#   get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE", "R_SEX")) %>%
-#   select(R_RACE, R_SEX, c(ends_with("ratio"))) %>%
-#   # arrange(factor(R_RACE, levels  = race_factor_level)) %>%
-#   pivot_longer(cols = c(ends_with("ratio")),
-#                values_to = c("ratio_data")) %>%
-#   mutate(ratio_data = as.numeric(ratio_data)) %>% 
-#   filter(R_RACE != "Total") %>%
-#   ggplot(aes(
-#     x = factor(R_RACE, levels = race_factor_level),
-#     y = ratio_data,
-#     fill = factor(name, levels = ratios_factor_levels)
-#   )) +
-#   geom_bar(position = "dodge", stat = "identity") +
-#   theme_bar_charts(base_size = 8) +
-#   theme(axis.text.y = element_blank()) +
-#   # coord_flip() 
-#   geom_text(
-#     aes(label = ratio_data, color = factor(name, levels = ratios_factor_levels)),
-#     position = position_dodge(width = .9),
-#     vjust = -.8,
-#     size = 3,
-#     fontface = "bold"
-#   ) +
-#   scale_y_continuous(expand = expansion(mult = c(0, .05)),
-#                          name = ""
-#                          # limits = c(0, 10)
-#                      ) +
-#   scale_color_manual( # For geom_text
-#     values = c(
-#       "crash_drivers_ratio" = "#428BCA",
-#       "crash_vmt_ratio" = "#4DB848",
-#       "arrest_driver_ratio" = "#D50032",
-#       "arrest_vmt_ratio" = "#d6a60f"
-#     )
-#   ) + #for geom_text
-#   scale_fill_manual( # For bar chart fill
-#     # for bars
-#     name = "",
-#     values = c(
-#       "crash_drivers_ratio" = "#428BCA",
-#       "crash_vmt_ratio" = "#4DB848",
-#       "arrest_driver_ratio" = "#D50032",
-#       "arrest_vmt_ratio" = "#d6a60f"
-#     )
-#     # labels = c("Crashes", "Drivers", "VMT", "Arrest to VMT")
-#   ) +
-#   scale_x_discrete(labels= race_axis_labels) +
-#   labs(
-#     title = "<span style='font-size:15pt'>Ratio of
-#     <span style='color:#428BCA;'>**crash to drivers**</span>,
-#     <span style='color:#4DB848;'>**crash to VMT**</span>,
-#     <span style='color:#D50032;'>**arrest to driver**</span>, and
-#     <span style='color:#d6a60f;'>**arrest to VMT**</span> by race and sex
-#     </span>"
-#   ) + facet_wrap( ~ R_SEX)
-```
 ```{r Ratio comparison of race and sex version 2, fig.height=10, fig.width=10}
 race_axis_labels <- c('American\nIndian or\nAlaska Native', 'Asian or\nPacific\nIslander', 'Black or\nAfrican\nAmerican', 'Hispanic', 'White', 'Other/\nUnknown') # Took out 'Native Hawaiian or other Pacific Islander'
 # By race and sex
@@ -582,55 +455,6 @@ persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., 
   ) + facet_wrap( ~ R_SEX, ncol = 1)
 ```
 
-```{r percents comparison of race and age}
-# By race and sex
-# persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_RACE", "age_group_10yr")) %>% select(R_RACE, age_group_10yr, nhts_n, total_drivers, PMD, crash_count) %>% filter(!is.na(age_group_10yr)) %>% mutate(
-#   total_vmt = total_drivers * PMD,
-#   percent_of_crashes = round(crash_count * 100 / sum(crash_count, na.rm = TRUE), 2),
-#   percent_of_drivers = round(total_drivers * 100  / sum(total_drivers, na.rm = TRUE), 2),
-#   percent_of_vmt = round(PMD * 100 * total_drivers / sum(PMD * total_drivers, na.rm = TRUE), 2)
-# ) %>% pivot_longer(cols = starts_with("percent"),
-#                    values_to = c("percent_data")) %>%
-#   ggplot(aes(x = factor(age_group_10yr, levels = rev(age_group_10yr_factor_level)), y = percent_data, fill = name)) +
-#   geom_bar(position = "dodge", stat = "identity") +
-#   theme_bar_charts() +
-#   theme(axis.text.x = element_blank()) +
-#   coord_flip() +
-#   geom_text(
-#     aes(label = paste0(round(percent_data, 1), "%"), color = name),
-#     position = position_dodge(width = .9),
-#     hjust = -.2,
-#     size = 3,
-#     fontface = "bold"
-#   ) + scale_y_continuous(expand = expansion(mult = c(0, .05)),
-#                          name = "",
-#                          limits = c(0, 22)) +
-#   scale_color_manual(
-#     values = c(
-#       "percent_of_crashes" = "#D50032",
-#       "percent_of_drivers" = "#428BCA",
-#       "percent_of_vmt" = "#4DB848"
-#     )
-#   ) + #for geom_text
-#   scale_fill_manual(
-#     # for bars
-#     name = "",
-#     values = c(
-#       "percent_of_crashes" = "#D50032",
-#       "percent_of_drivers" = "#428BCA",
-#       "percent_of_vmt" = "#4DB848"
-#     ),
-#     labels = c("Crashes", "Drivers", "VMT")
-#   ) +
-#   labs(
-#     title = "<span style='font-size:15pt'>Share of
-#     <span style='color:#4DB848;'>**VMT**</span>,
-#     <span style='color:#428BCA;'>**drivers**</span>, and
-#     <span style='color:#D50032;'>**crashes**</span> by age and race
-#     </span>"
-#   ) + facet_wrap(~R_RACE)
-```
-
 ```{r chart of age of driver and crash count by VMT}
 age_craash_vmt <- persons_new %>% filter(ROLE == "Driver") %>% 
 get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% mutate(byvmt = crash_count/(PMD*total_drivers)*1000000)
@@ -663,12 +487,6 @@ ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position=
   labs(title = "Rate of drivers in a crash by 1,000,000 VMT")
 ```
 
-```{r chart of age of driver and crash count for alc or drug susp VMT}
-# persons_new %>% get_impaired_driver_flag() %>% filter(impaireddriver_flag == "Y") %>% 
-# get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>%
-# ggplot() + geom_bar(aes(x= age_group_10yr, y = crash_count/(PMD*total_drivers)*100000), stat = 'identity') + theme_classic() + labs(title = "drivers in a crash by 100,000 VMT - suspected Alc/Drug Driver")
-```
-
 ```{r chart of age of killed driver by VMT}
 age_craash_vmt_killed <- persons_new %>% filter(ROLE == "Driver", WISINJ == 'Fatal Injury') %>% 
 get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% filter(age_group_10yr!= "Unknown") %>% mutate(byvmt = crash_count/(PMD*total_drivers)*1000000)
@@ -699,34 +517,4 @@ ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position=
      scale_y_continuous(limits = c(0, 0.028),
      expand = expansion(mult = c(0, .05)), name = "") +
   labs(title = "Rate of killed drivers in a crash by 1,000,000 VMT")
-```
-
-```{r crash relative risk ratios}
-# pmd_byage <- persons_new %>% filter(ROLE == "Driver") %>% person_summarise_crash_count(fields_to_summarise = c("age_group_10yr")) %>% na.omit() %>% filter(age_group_10yr %in% c("<18", "30-39"))
-
-# poi <- nhts_summarise_pmd(nhts_person, fields_to_summarise = "age_group_10yr") %>% left_join(., pmd_byage, by = "age_group_10yr") %>% mutate(adult = ifelse(age_group_10yr %in%c("<18"), "N", "Y")) %>% group_by(adult) %>% na.omit() %>% count(sum_crash = sum(crash_count), pmd = sum(PMD))
-```
-
-```{r ratio}
-get_relative_risk <- function(df, by_group, count, exposure ) {
-  # df %>% filter(by_group == "N") %>% select(count)
-  intervention_count = df[df$"adult"  == "N", count]
-  intervention_exposure = df[df$"adult" == "N", exposure]
-  control_count = df[poi$"adult" == "Y", count]
-  control_exposure = df[df$"adult" == "Y", exposure]
-
-  return((intervention_count/intervention_exposure) / (control_count/control_exposure))
-}
-# get_relative_risk(poi, by_group = "adult", count = "sum_crash", exposure = "pmd")
-
-# (27177 / 1679881904) / (176133/51350027192) # teen over adult, adult as a referent
-```
-
-```{r}
-y <- 10
-f1 <- function(x = {y <- 1; 2}, y = 0) {
-  c(x, y)
-}
-f1()
-y
 ```
