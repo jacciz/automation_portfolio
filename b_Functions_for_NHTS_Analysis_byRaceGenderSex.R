@@ -3,7 +3,7 @@
 
 
 # Create factor levels so they get displayed in this order
-age_group_10yr_factor_level = c("<18", "18-20","21-29","30-39","40-49","50-59","60-69", "70+") 
+age_group_10yr_factor_level <- c("<18", "18-20","21-29","30-39","40-49","50-59","60-69", "70+") 
 race_factor_level <- c('American Indian or Alaska Native', 'Asian or Pacific Islander', 'Black or African American', 'Hispanic', 'White', 'Other/Unknown') # Took out 'Native Hawaiian or other Pacific Islander'
 percents_factor_levels <- c("percent_of_drivers", "percent_of_vmt", "percent_of_crashes", "percent_of_arrests")
 ratios_factor_levels <- c("crash_drivers_ratio", "crash_vmt_ratio", "arrest_driver_ratio", "arrest_vmt_ratio")
@@ -140,7 +140,105 @@ find_if_passenger <- function(person_df) {
   left_join(person_df, pass_join, by = c("CRSHNMBR","UNITNMBR")) %>% mutate(passenger_flag = replace_na(passenger_flag, "N"))
 }
 
+# -------------- Census Relabel Race, Hispanic, Sex -----------------------------
+relabel_census <- function(raw_census) {
+  raw_census %>% setnames(., c("AGE", "RACE", "SEX", "HISP"),
+                          c("R_AGE", "R_RACE", "R_SEX", "R_HISP"))
+  raw_census %>% as.data.table() %>% mutate(
+    R_SEX = dplyr::recode(
+      R_SEX,
+      "2" = "Female",
+      "1" = "Male",
+      "0" = "Unknown"
+    ),
+    R_RACE = dplyr::recode(
+      R_RACE,
+      # combo
+      "6" = "Other/Unknown",
+      # This is 2 or more races
+      # "5" = "Other/Unknown",
+      "5" = "Asian or Pacific Islander",
+      "4" = "Asian or Pacific Islander",
+      "3" = "American Indian or Alaska Native",
+      "2" = "Black or African American",
+      "1" = "White",
+      "0" = "Other/Unknown"
+    )
+  ) %>%
+    mutate(R_RACE = ifelse(R_HISP %in% c("2"), "Hispanic", R_RACE),
+           R_AGE = as.integer(R_AGE))
+  # "2" = "Hispanic",
+  # "1" = "Non Hispanic",
+  # "0" = "Both Hispanic origins"
+}
 
+# -------------- Crash Relabel Race, Hispanic, Sex -----------------------------
+relabel_crash_persons <- function(person_df){
+  person_df <-
+    person_df %>% mutate(
+      RACE = dplyr::recode(
+        RACE,
+        "A" = "Asian or Pacific Islander",
+        "B" = "Black or African American",
+        "H" = "Hispanic",
+        "I" = "American Indian or Alaska Native",
+        "W" = "White",
+        .missing = "Other/Unknown",
+        .default = "Other/Unknown" # for empty values
+      ),
+      SEX = dplyr::recode(
+        SEX,
+        "F" = "Female",
+        "M" = "Male",
+        "U" = "Unknown",
+        .missing = "Unknown",
+      )
+    ) %>% get_age_groups_10yr(., age_column = person_df$AGE) 
+  
+  # Rename columns so to match with NHTS data
+  person_df %>% setnames(., c("RACE", "SEX", "AGE"),
+                         c("R_RACE", "R_SEX", "R_AGE"))
+}
+
+# -------------- Arrest Relabel Race, Hispanic, Sex -----------------------------
+adjustCentury <- function(d, threshold=1930){
+  y <- year(d) %% 100
+  if(y > threshold %% 100) year(d) <- 1900 + y
+  d
+}
+x %>% mutate(dob =adjustCentury(dob),
+# x %>% mutate(dob = ifelse(year(dob) %% 100 > threshold %% 100,  1900 + year(dob) %% 100, dob) )
+             age = time_length(interval(as.Date(dob), as.Date(violation_date)), "years"))
+
+relabel_arrest <- function(raw_arrest) {
+  raw_arrest %>% as.data.table() %>%
+    mutate_at(c("dob", "violation_date", "consensus_adjud__date"), dmy) %>%
+    # fix dates, year should be 1960, not 2060
+    mutate(dob = adjustCentury(dob)) %>%
+    mutate(
+      Race = dplyr::recode(
+        Race,
+        "A" = "Asian or Pacific Islander",
+        "B" = "Black or African American",
+        "H" = "Hispanic",
+        "I" = "American Indian or Alaska Native",
+        "W" = "White",
+        .default = "Other/Unknown",
+        # for empty values
+        .missing = "Other/Unknown"
+      ),
+      Sex = dplyr::recode(
+        Sex,
+        "F" = "Female",
+        "M" = "Male",
+        "U" = "Unknown"
+      ),
+      age = time_length(interval(as.Date(dob), as.Date(violation_date)), "years")
+    ) %>%
+    get_age_groups_10yr(., age_column = raw_arrest$age) %>%
+    setnames(., c("Race", "Sex"),
+             c("R_RACE", "R_SEX"))
+}
 # -------------- NHTS Relabel Race, Hispanic, Sex -----------------------------
 # This is according to the codebook
 nhts_relabel_race <- function(df) {

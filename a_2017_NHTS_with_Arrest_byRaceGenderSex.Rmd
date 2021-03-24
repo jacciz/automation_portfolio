@@ -1,5 +1,6 @@
 ---
 title: "NHTS Data Analysis on Drivers and Crashes"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
     df_print: paged
@@ -7,7 +8,7 @@ output:
 ---
 
 #### **Notes**
-
+-   Functions are sourced 
 -   NHTS data from 2017. Crashes from 2017 and 2018 - Average of Annual Fatal/Injury Crashes.
 -   NHTS: 4.208 million drivers, DMV 4.286 million drivers
 -   VMT: NHTS: \~51 (non-commercial travel) WisDOT: 65.324 billion
@@ -20,178 +21,69 @@ knitr::opts_knit$set(root.dir = '/...')
 ```
 
 ```{r Load Libraries}
-# setwd("W:/HSSA/Keep/Jaclyn Ziebert/R/CSV") # if you want to change wd, put this in the code block
-# install.packages("tidyverse", repo = 'https://cran.R-project.org')  try this to install packages in base R, not RStudio
-
 library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
 library(ggplot2)      # create charts
 library(tidyverse)    # includes tidyr, tibble, and more
 library(lubridate)    # for working with dates, need this for data import
 library(expss)        # SPSS style package
-library(fst)          # Data type of db data
 library(ggtext)       # HTML for charts
 library(data.table)   # db files are loaded as a data table, need this package
 library(janitor)      # make tabyl, adorn_totals
 # library(rlang)        # {{variable}} to make ggplot2 functions
+library(wisdotcrashdatabase)
 library(kableExtra)   # styling for HTML
 library(summarizeNHTS)
 library(censusapi)
 library(formattable)
 
-source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.R") # Source of all the functions
 source("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/nhts data/Functions_for_NHTS_Analysis_byRaceGenderSex.R") # Source of analysis functions
-# wd = "W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/"
 ```
 
 ```{r read arrest data}
-arrest17 <- read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/owi convictions data/arrest2017_withcnty.csv")
-arrest18 <- read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/owi convictions data/arrest2018_withcnty.csv")
+arrests1718 <- rbind(
+  read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/owi convictions data/arrest2017_withcnty.csv"),
+  read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/owi convictions data/arrest2018_withcnty.csv"))
 
-arrests1718 <- rbind(arrest17, arrest18)
+arrests1718 <- relabel_arrest(arrests1718)
 ```
 
 ```{r get census data from api}
 # census_summarise_pop_count # Census Bureau's Population Estimates Program (PEP) - https://api.census.gov/data/2015/pep/charage https://www.census.gov/programs-surveys/popest/technical-documentation/file-layouts.html
 # https://api.census.gov/data/2017/pep/charage/variables.html   # 2017 POP: 5,772,917
+
 # Remove these fields that sum by characteristic
 census17 <- getCensus(name = "pep/charage", key = "d1b8a9ed12a716ebe87a794a42b806f5783abf68", vars = c("AGE", "SEX", "RACE", "HISP", "POP"), region = "state:55", vintage = 2017) %>% filter(AGE != "999", SEX != "0",  HISP != "0" , !(RACE %in% c("0", "7", "8", "9", "10", "11")))
 
-census17_age18 <- census17 %>% filter(AGE >= 18)
-```
+census17 = relabel_census(census17)
+census17 = census17 %>% get_age_groups_10yr(., age_column = census17$R_AGE)
 
-```{r then recode census variables}
-# Change names to match NHTS
-census17 %>% setnames(., c("AGE", "RACE", "SEX", "HISP"),
-                               c("R_AGE", "R_RACE", "R_SEX", "R_HISP"))
-census17 <- census17 %>% as.data.table() %>% mutate(
-  R_SEX = dplyr::recode(
-    R_SEX,
-    "2" = "Female",
-    "1" = "Male",
-    "0" = "Unknown"
-  ),
-  R_RACE = dplyr::recode(
-    R_RACE,
-    # "11" = "Native Hawaiian or other Pacific Islander",
-    # "10" = "Asian",
-    # "9" = "American Indian or Alaska Native",
-    # "8" = "Black or African American",
-    # "7" = "White",
-    # combo
-    "6" = "Other/Unknown",
-    # This is 2 or more races
-    # "5" = "Other/Unknown",
-    "5" = "Asian or Pacific Islander",
-    "4" = "Asian or Pacific Islander",
-    "3" = "American Indian or Alaska Native",
-    "2" = "Black or African American",
-    "1" = "White",
-    "0" = "Other/Unknown"
-  )
-) %>%
-  mutate(R_RACE = ifelse(R_HISP %in% c("2"), "Hispanic", R_RACE),
-         R_AGE = as.integer(R_AGE))
-          # "2" = "Hispanic",
-          # "1" = "Non Hispanic",
-          # "0" = "Both Hispanic origins"
-```
-
-```{r Next select for crash data}
-file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
-file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narratives
-years = c("17", "18") # select years to import, must be in this format
-
-# Choose variables to select or keep empty - c()
-persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "TOTUNIT", "UNITNMBR", "CRSHSVR", "WISINJ", "DRVRFLAG", "ROLE", "SEX", "AGE", "RACE", "ALCSUSP", "DRUGSUSP", paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0")), paste0("STATNM", formatC(seq(1, 20), width = 2, flag = "0"))) #  paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0"))
-
+census17_age18 <- census17 %>% filter(R_AGE >= 18)
 ```
 
 ```{r Run import person crash data and relabel}
-# Imports new databases - you may choose to select certain columns - parameters are file_loc, years, and crashes_columns
+persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "TOTUNIT", "UNITNMBR", "CRSHSVR", "WISINJ", "DRVRFLAG", "ROLE", "SEX", "AGE", "RACE", "ALCSUSP", "DRUGSUSP", "DRVRPC", "STATNM")
 
-# Relabel to match with NHTS data
-persons_new <- import_persons()
-persons_new <-
-  persons_new %>% mutate(
-    RACE = dplyr::recode(
-      RACE,
-      "A" = "Asian or Pacific Islander",
-      "B" = "Black or African American",
-      "H" = "Hispanic",
-      "I" = "American Indian or Alaska Native",
-      "W" = "White",
-      .missing = "Other/Unknown",
-      .default = "Other/Unknown" # for empty values
-    ),
-    SEX = dplyr::recode(
-      SEX,
-      "F" = "Female",
-      "M" = "Male",
-      "U" = "Unknown",
-      .missing = "Unknown",
-    )
-  ) %>% get_age_groups_10yr(., age_column = persons_new$AGE) %>%
+persons_new <- import_db_data(filepath = "C:/CSV/csv_from_sas/fst/", db_type = "person", columns = persons_columns, years = c("17", "18"))
+persons_new <- persons_new %>%
   filter(CRSHSVR != "Property Damage")
 
-    # Rename columns so to match with NHTS data
-    persons_new <-
-      persons_new %>% setnames(., c("RACE", "SEX", "AGE"),
-                               c("R_RACE", "R_SEX", "R_AGE"))
-# persons_new <- persons_new %>% filter(TOTUNIT == 1)
+persons_new <- relabel_crash_persons(persons_new)
 persons_drivers <- persons_new %>% filter(ROLE == "Driver")
-
-# Add age categories
-census17 <- census17 %>% get_age_groups_10yr(., age_column = census17$R_AGE)
-```
-
-```{r relabel arrest data}
-arrests1718 <-
-  arrests1718 %>% as.data.table() %>%
-  mutate_at(c("dob", "violation_date", "consensus_adjud__date"), dmy) %>% mutate(
-    Race = dplyr::recode(
-      Race,
-      "A" = "Asian or Pacific Islander",
-      "B" = "Black or African American",
-      "H" = "Hispanic",
-      "I" = "American Indian or Alaska Native",
-      "W" = "White",
-      .default = "Other/Unknown",
-      # for empty values
-      .missing = "Other/Unknown"
-    ),
-    Sex = dplyr::recode(Sex,
-                        "F" = "Female",
-                        "M" = "Male",
-                        "U" = "Unknown"),
-    age = time_length(interval(as.Date(dob), as.Date(violation_date)), "years")
-  ) %>%
-  get_age_groups_10yr(., age_column = arrests1718$age) %>%
-  setnames(., c("Race", "Sex"),
-           c("R_RACE", "R_SEX"))
 ```
 
 ```{r read raw NHTS data}
-# This is to use package functions
-# nhts_data <- read_data("2017", "C:/NHTS/")
-
 # These csvs are to do our own analysis w/o using package functions
 nhts_person <- read_csv("C:/NHTS/csv/2017/person.csv") %>% as.data.table() %>% mutate(HOUSEID = as.character(HOUSEID))
 
 # Then we need to relabel variables
 nhts_person <- nhts_person %>% nhts_relabel_race() %>% nhts_relabel_race_if_hispanic() %>% nhts_relabel_sex() %>% nhts_relabel_hispanic() %>% nhts_combine_unknown_race() %>% get_age_groups_10yr(., nhts_person$R_AGE) # %>% mutate(R_RACE = factor(R_RACE, levels = race_factor_level), age_group_10yr = factor(age_group_10yr, levels = age_group_10yr_factor_level))
 
-# Misc code
-# list(R_AGE,R_RACE,R_SEX,R_HISP)  HHSTATE %in% c("WI")
-# filter(E != "NaN") %>% hablar::convert(hablar::int(R_AGE)) %>% mutate(R_AGE = replace_na(R_AGE, "N"))
-
-# nhts_person %>% nhts_relabel_race() %>% 
-#     mutate(R_RACE = ifelse(R_HISP %in% c("01", "Yes, Hispanic or Latino"), "Hispanic", R_RACE)) %>% nhts_combine_unknown_race()  #nhts_relabel_race_integ()
 ```
+
 ```{r read dmv driver}
 dmv_drivers <- read.csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/licensed_drivers/dmv_drivers_1718.csv") %>% as.data.table()
 dmv_drivers <- dmv_drivers %>% get_age_groups_10yr(.,dmv_drivers$R_AGE)
 ```
-
 
 -   SEX == Unknown and AGE_GROUP == Unknown was removed, so totals among tables may not be equal
 -   Ratios are derived by 'share of' of each group
@@ -199,65 +91,56 @@ dmv_drivers <- dmv_drivers %>% get_age_groups_10yr(.,dmv_drivers$R_AGE)
 ```{r Make TABLE race and age comparisons}
 # NOW WITH DMV DRIVERS
 # census_df = census17_age18 for adult population  
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_RACE")) %>%
-  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Race"), caption = "Table 1. Share of travel, driver, and crashes by race")
+persons_new %>%
+  filter(ROLE == 'Driver') %>%
+  get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_RACE")) %>%
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE")) %>%
+  get_column_colors() %>% 
+  make_summarized_data_table(name_of_fields_that_were_summarised = c("Race"), caption = "Table 1. Share of travel, driver, and crashes by race")
 
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(.,  use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr")) %>% filter(age_group_10yr != "Unknown") %>% 
-  arrange(factor(age_group_10yr, levels  = age_group_10yr_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group"), caption = "Table 2. Share of travel, driver, and crashes by age group")
+persons_new %>%
+  filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(.,  use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr")) %>%
+  filter(age_group_10yr != "Unknown") %>% 
+  arrange(factor(age_group_10yr, levels  = age_group_10yr_factor_level)) %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr")) %>%
+  get_column_colors() %>%
+  make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group"), caption = "Table 2. Share of travel, driver, and crashes by age group")
 
 # %>% filter(R_SEX != "Unknown") 
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_SEX")) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex"), caption = "Table 3. Share of travel, driver, and crashes by sex")
+persons_new %>%
+  filter(ROLE == 'Driver') %>%
+  get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_SEX")) %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX")) %>%
+  get_column_colors() %>%
+  make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex"), caption = "Table 3. Share of travel, driver, and crashes by sex")
 
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_SEX", "R_RACE")) %>% filter(R_SEX != "Unknown") %>% 
-  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX", "R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex", "Race"), caption = "Table 4. Share of travel, driver, and crashes by sex and race")
+persons_new %>%
+  filter(ROLE == 'Driver') %>%
+  get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("R_SEX", "R_RACE")) %>%
+  filter(R_SEX != "Unknown") %>% 
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX", "R_RACE")) %>%
+  get_column_colors() %>%
+  make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex", "Race"), caption = "Table 4. Share of travel, driver, and crashes by sex and race")
 
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr", "R_RACE")) %>% filter(age_group_10yr != "Unknown") %>% 
-  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Race"), caption = "Table 5. Share of travel, driver, and crashes by age group and race")
+persons_new %>%
+  filter(ROLE == 'Driver') %>%
+  get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr", "R_RACE")) %>%
+  filter(age_group_10yr != "Unknown") %>% 
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_RACE")) %>%
+  get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Race"), caption = "Table 5. Share of travel, driver, and crashes by age group and race")
 
-persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr", "R_SEX")) %>% filter(R_SEX != "Unknown", age_group_10yr != "Unknown") %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_SEX")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Sex"), caption = "Table 6. Share of travel, driver, and crashes by age group and sex")
+persons_new %>%
+  filter(ROLE == 'Driver') %>%
+  get_counts_of_PMD_crash_drivers(., use_dmv_drivers = TRUE, fields_to_summarise = c("age_group_10yr", "R_SEX")) %>%
+  filter(R_SEX != "Unknown", age_group_10yr != "Unknown") %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_SEX")) %>%
+  get_column_colors() %>%
+  make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Sex"), caption = "Table 6. Share of travel, driver, and crashes by age group and sex")
 ```
 
-```{r get dmv drivers licenses, echo=FALSE}
-lic_2017 <- read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/licensed_drivers/CountyByAge2017.csv")
-agesum_2017 <- data.frame(age = names(lic_2017[,-1]), lic_2017=colSums(lic_2017[,-1]))
-lic_2018 <- read_csv("W:/HSSA/Keep/Jaclyn Ziebert/Studies and Papers/OWI Moberg/licensed_drivers/CountyByAge2018.csv")
-agesum_2018 <- data.frame(age = names(lic_2018[,-1]), lic_2018=colSums(lic_2018[,-1]))
-
-# Join licensed and get average
-licensed <- left_join(agesum_2017, agesum_2018, by = "age")%>% mutate(age = as.integer(age)) %>% filter(!is.na(age)) %>% mutate(ave_1718 =(lic_2017 + lic_2018)/2)
-```
-
-```{r table 3 gather by licensed drivers and age, echo=FALSE}
-# Add age groups
-licensed <- get_age_groups_10yr(licensed, age_column = licensed$age) %>% as.data.table() # %>% group_by(age_group_10yr) %>% count(age_group_10yr,sum(ave_1718, na.rm = TRUE))
-
-# Get count by age_group
-license_count <- licensed[, .(total_lic1718=sum(ave_1718, na.rm = TRUE)), by = age_group_10yr]
-
-# Get drivers in all crashes # TAKE OFF property damage with loading crash data above
-persons_drivers %>% filter(age_group_10yr != "Unknown") %>% 
-person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE)) # %>% count(sum(crash_count))
-
-
-# Get drivers in injury/death crashes 
-persons_drivers %>% filter(CRSHSVR != "Property Damage", age_group_10yr != "Unknown") %>% 
-person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE))# %>% count(sum(crash_count))
-
-# %>% arrange(factor(age_group_10yr, levels  = age_group_10yr_factor_level))
-
-# Get drivers in injury/death crashes - alcohol susp
-persons_drivers %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impaireddriver_flag == "Y", age_group_10yr != "Unknown", CRSHSVR != "Property Damage") %>% 
-person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE), percent_of_lic = total_lic1718 * 100 / sum(total_lic1718, na.rm = TRUE))
-
-# By sex
-persons_drivers %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impaireddriver_flag == "Y", CRSHSVR != "Property Damage") %>% 
-person_summarise_crash_count(., fields_to_summarise = "R_SEX") #%>% left_join(. , license_count, by = "R_SEX")# %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE), percent_of_lic = total_lic1718 * 100 / sum(total_lic1718, na.rm = TRUE))
-```
-
-```{r gather crashes by race, echo=FALSE}
-persons_drivers  %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impaireddriver_flag == "Y", CRSHSVR != "Property Damage") %>% 
-person_summarise_crash_count(., fields_to_summarise = "R_RACE") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE)) 
-```
+# Charts
 
 ```{r Ratio comparison of race and sex version 2, fig.height=10, fig.width=10}
 race_axis_labels <- c('American\nIndian or\nAlaska Native', 'Asian or\nPacific\nIslander', 'Black or\nAfrican\nAmerican', 'Hispanic', 'White', 'Other/\nUnknown') # Took out 'Native Hawaiian or other Pacific Islander'
@@ -318,14 +201,6 @@ persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., 
       "</span>"
     ),
     values =  ratio_fill
-    # color = c("428BCA", "428BCA", "428BCA","428BCA"),
-    # values = c(
-    #   "crash_drivers_ratio" = "#428BCA",
-    #   "crash_vmt_ratio" = "#4DB848",
-    #   "arrest_driver_ratio" = "#D50032",
-    #   "arrest_vmt_ratio" = "#d6a60f"
-    # )
-    # labels = c("Crashes", "Drivers", "VMT", "Arrest to VMT")
   ) +
   scale_x_discrete(labels= race_axis_labels) +
   labs(
@@ -462,20 +337,9 @@ get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% m
 age_craash_vmt %>% filter(age_group_10yr != "Unknown") %>% 
 ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position="dodge", stat="identity") +
   # geom_col(fill = "#428BCA") +
-  theme_classic() +
+  theme_bar_charts() +
   theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.text.y = element_blank(),
-    axis.text.x = element_text(size = 14),
-    legend.position = "none",
-   # plot.title = element_text(size = 10),
-    plot.title.position = "plot",
-    plot.title = element_markdown(lineheight = 1.1) # for title colors
-   # legend.text = element_markdown(size = 11)
-   ) +
+    axis.text.x = element_text(size = 14)) +
    geom_text(aes(age_group_10yr, byvmt, label = round(byvmt, 2)),
              color = "#428BCA",
      position = position_dodge(width = .9),
@@ -487,6 +351,7 @@ ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position=
   labs(title = "Rate of drivers in a crash by 1,000,000 VMT")
 ```
 
+
 ```{r chart of age of killed driver by VMT}
 age_craash_vmt_killed <- persons_new %>% filter(ROLE == "Driver", WISINJ == 'Fatal Injury') %>% 
 get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% filter(age_group_10yr!= "Unknown") %>% mutate(byvmt = crash_count/(PMD*total_drivers)*1000000)
@@ -494,20 +359,9 @@ get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% f
 age_craash_vmt_killed %>%  
 ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position="dodge", stat="identity") +
   # geom_col(fill = "#428BCA") +
-  theme_classic() +
+  theme_bar_charts() +
   theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.text.y = element_blank(),
-    axis.text.x = element_text(size = 14),
-    legend.position = "none",
-   # plot.title = element_text(size = 10),
-    plot.title.position = "plot",
-    plot.title = element_markdown(lineheight = 1.1) # for title colors
-   # legend.text = element_markdown(size = 11)
-   ) +
+    axis.text.x = element_text(size = 14)) +
    geom_text(aes(age_group_10yr, byvmt, label = round(byvmt, 3)),
              color = "#428BCA",
      position = position_dodge(width = .9),
