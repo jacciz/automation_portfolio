@@ -7,7 +7,7 @@ I created a 14 page report on crash statistics for each of Wisconsin's 72 counti
 + Translates our crash data into .fst file by running a cmd script.
 + This script runs both a SAS script and an R script without opening any IDE (just click the button!)
 
-## Analysis of OWI ratios
+## Analysis of OWI ratios (NHTS data)
 This project involved the compilation of 5 data sets to calculate OWI ratios broken down by age group, race and sex. In order to combine these datasets, I had to rename columns and recode variables so datasets can be joined. I wrote functions that summarize each of the datasets and combines them into a table with the parameter allowing for any combo of age, sex, or race.
 + Datasets include: NHTS, Census, arrest data, DMV driver, and persons in a crash
 
