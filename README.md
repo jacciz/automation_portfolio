@@ -1,7 +1,7 @@
 # automation_portfolio
 This is a porforlio of my code from 3 projects.
 ## Dane_2020 (Data visualization)
-I created a 14 page report on crash statistics for each county. For this project, I used Excel and Publisher and the two files were connected dynamically. For example, charts were dependant based on which county was selected in Excel. This way, the graphs and statistics in the publisher report was updated dyanmically. If I were to do this project again, I would use a parameterized R Markdown.
+I created a 14 page report on crash statistics for each of Wisconsin's 72 counties. For this project, I used Excel and Publisher and the two files were connected dynamically. For example, charts were dependant based on which county was selected in Excel. This way, the graphs and statistics in the publisher report was updated dyanmically. If I were to do this project again, I would use a parameterized R Markdown.
 
 ## Automation of SAS to FST format
 + Translates our crash data into .fst file by running a cmd script.
